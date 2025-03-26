@@ -1,10 +1,9 @@
 import { DexScreener } from '../utils/dexscreener.js';
 import { createClient } from '@supabase/supabase-js';
 import { SOL_ADDRESS, USDC_ADDRESS } from '../utils/swapProcessor.js';
-import { sendTelegramMessage } from '../utils/telegram.js';
+import { sendFormattedNotificationByPlatform } from '../utils/notification.js';
 import { analyzeTokenTxs } from '../utils/txsAnalyzer.js';
-import { createMsg } from './messageTemplate.js';
-import { sendSumMessage } from '../utils/aiSummary.js';
+import { sendSumMessageByPlatform } from '../utils/aiSummary.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -28,17 +27,15 @@ async function checkFilter(tokenAddress) {
     if (pairAge <= MAX_AGE_DAYS && tokenInfo.marketCap >= MIN_MARKET_CAP) {
       const analysis = await analyzeTokenTxs(tokenAddress);
       
-      // Create and send message to Telegram
-      const message = createMsg(tokenInfo, analysis);
-      const tgResponse = await sendTelegramMessage(message);
+      // 使用新的按平台格式化消息发送方法
+      const notificationResponses = await sendFormattedNotificationByPlatform(tokenInfo, analysis);
       
-      if (tgResponse?.ok === true) {
-        const messageId = tgResponse.result.message_id;
-        // Send AI summary message
-        await sendSumMessage(tokenInfo, messageId);
-        console.log(`[${getTimeStamp()}] Successfully sent analysis for token ${tokenAddress} to Telegram`);
-      } 
-    } 
+      if (Object.keys(notificationResponses).length > 0) {
+        // 为每个平台分别发送AI摘要消息
+        await sendSumMessageByPlatform(tokenInfo, notificationResponses);
+        console.log(`[${getTimeStamp()}] Successfully sent analysis for token ${tokenAddress} to notification channels`);
+      }
+    }
   } catch (error) {
     console.error(`[${getTimeStamp()}] Error checking token ${tokenAddress}:`, error);
   }

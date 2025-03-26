@@ -25,7 +25,7 @@ export async function sendTelegramMessage(message, replyToMessageId = null) {
     });
 
     const data = await response.json();
-    // console.log('Telegram response:', data);
+    console.log('Telegram response:', data);
     
     if (!data.ok || data.description?.includes('Unknown error')) {
       throw new Error(`Telegram API error: ${data.description || 'Unknown error'}`);

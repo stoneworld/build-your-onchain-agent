@@ -1,5 +1,5 @@
 import { searchTwitter, getUserTimeline } from './tweetApi.js';
-import { sendTelegramMessage } from './telegram.js';
+import { sendNotification, sendPlatformNotification } from './notification.js';
 import OpenAI from "openai";
 import dotenv from 'dotenv';
 
@@ -113,31 +113,81 @@ ${promptSuffix}`;
   }
 }
 
-// Sends the tweet summary to Telegram as a reply to a message
-export async function sendSumMessage(tokenInfo, replyToMessageId) {
+
+// 为不同平台格式化推特摘要消息
+function formatSummaryMessage(tokenInfo, search_summary, account_summary, platform = 'telegram') {
+  let message = '';
+
+  if (platform === 'telegram') {
+    message = `\u{1F49B}${tokenInfo.symbol} tweets summary:\n`;
+
+    if (account_summary) {
+      // Format line breaks and spaces, replace multiple line breaks with a single one
+      const formattedAccountSummary = account_summary
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+      message += `<blockquote>${formattedAccountSummary}</blockquote>\n\n`;
+    }
+
+    if (search_summary) {
+      message += `\u{1F49B}Searched tweets summary:\n<blockquote>${search_summary}</blockquote>`;
+    }
+  } else if (platform === 'feishu') {
+    message = `💛 ${tokenInfo.symbol} 推文摘要:\n`;
+
+    if (account_summary) {
+      // 处理飞书格式，不支持HTML标签
+      const formattedAccountSummary = account_summary
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+      message += `官方账号摘要:\n${formattedAccountSummary}\n\n`;
+    }
+
+    if (search_summary) {
+      message += `💛 相关推文摘要:\n${search_summary}`;
+    }
+  }
+
+  return message;
+}
+
+// 发送推特摘要到不同平台，作为各自平台上特定消息的回复
+export async function sendSumMessageByPlatform(tokenInfo, platformResponses) {
   const summaryResult = await sumTweets(tokenInfo);
   if (!summaryResult) {
     console.log(`Unable to get tweet summary for ${tokenInfo.symbol}`);
-    return;
+    return {};
   }
   
   const { search_summary, account_summary } = summaryResult;
+  const results = {};
   
-  let message = `\u{1F49B}${tokenInfo.symbol} tweets summary:\n`;
-  
-  if (account_summary) {
-    // Format line breaks and spaces, replace multiple line breaks with a single one
-    const formattedAccountSummary = account_summary
-      .replace(/\n\s*\n/g, '\n')  
-      .trim();  
-    message += `<blockquote>${formattedAccountSummary}</blockquote>\n\n`;
+  // 遍历每个平台的响应，为每个平台发送对应的摘要
+  for (const [platform, response] of Object.entries(platformResponses)) {
+    if (!response) continue;
+    
+    try {
+      // 提取消息ID，根据不同平台的响应格式
+      let messageId = null;
+      if (platform === 'telegram' && response.result && response.result.message_id) {
+        messageId = response.result.message_id;
+      } else if (platform === 'feishu' && response.data && response.data.message_id) {
+        messageId = response.data.message_id;
+      }
+      
+      // 格式化该平台的消息
+      const formattedMessage = formatSummaryMessage(tokenInfo, search_summary, account_summary, platform);
+      
+      // 发送到该特定平台
+      const result = await sendPlatformNotification(formattedMessage, platform, messageId);
+      if (result) {
+        results[platform] = result;
+        console.log(`Successfully sent ${tokenInfo.symbol} tweet summary to ${platform}`);
+      }
+    } catch (error) {
+      console.error(`Error sending summary to ${platform}:`, error);
+    }
   }
   
-  if (search_summary) {
-    message += `\u{1F49B}Searched tweets summary:\n<blockquote>${search_summary}</blockquote>`;
-  }
-  
-  const tgResponse = await sendTelegramMessage(message, replyToMessageId);
-  
-  return tgResponse;
+  return results;
 }
