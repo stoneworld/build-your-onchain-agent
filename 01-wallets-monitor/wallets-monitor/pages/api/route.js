@@ -19,10 +19,20 @@ export default async function handler(req, res) {
     return res.status(200).json({ skipped: true, message: 'Empty data' });
   }
 
-  // Skip PUMP_FUN transactions
-  if (txData.source === 'PUMP_FUN') {
-    return res.status(200).json({ skipped: true, message: 'Skipped PUMP_FUN transaction', signature: txData.signature });
-  }    
+  // Skip PUMP_FUN transactions or non-PUMP-AMM/METEORA_DLMM/JUPITER_V_6 transfer
+  if (txData.source === 'PUMP_FUN' || 
+    (txData.type === 'TRANSFER' && 
+     txData.accountData?.some(acc => acc.account === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P')) ||
+    (txData.type === 'TRANSFER' && 
+     !txData.accountData?.some(acc => acc.account === 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA')) || //PUMP_AMM
+    (txData.type === 'TRANSFER' && 
+     !txData.accountData?.some(acc => acc.account === 'LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo')) || //METEORA_DLMM
+    (txData.type === 'TRANSFER' && 
+     !txData.accountData?.some(acc => acc.account === 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4'))) { //JUPITER_V_6
+  console.log('Skipped PUMP_FUN related transaction or non-PUMP-AMM/METEORA_DLMM/JUPITER transfer:', txData.signature);
+  return res.status(200).json({ skipped: true });
+}  
+   
   // Process transaction data
   let processedData = null;
   
@@ -32,10 +42,11 @@ export default async function handler(req, res) {
     processedData = await solParser(txData.signature);
     if (!processedData) {
       console.error('Failed to parse tx:', txData.signature);
-      return res.status(200).json({ skipped: true, message: 'Parse failed', signature: txData.signature });
+      return res.status(200).json({ skipped: true });
     }
   } else {
-    return res.status(200).json({ skipped: true, message: 'No swap data' });
+    console.log('No swap data:', txData.signature);
+    return res.status(200).json({ skipped: true });
   }
 
   // Store to database

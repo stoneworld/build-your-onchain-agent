@@ -31,10 +31,11 @@ export const setupSwapWebhook = async () => {
     // Create Webhook configuration
     const webhookConfig = {
       accountAddresses,
-      transactionTypes: [TransactionType.SWAP], 
+      transactionTypes: [TransactionType.SWAP, TransactionType.TRANSFER],  
       webhookURL: WEBHOOK_URL,
       authHeader: `Bearer ${HELIUS_API_KEY}`,
       webhookType: WebhookType.ENHANCED, 
+      txnStatus: 'success'
     };
 
     const response = await helius.createWebhook(webhookConfig);

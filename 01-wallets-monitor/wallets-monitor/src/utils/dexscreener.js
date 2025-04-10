@@ -66,7 +66,7 @@ export class DexScreener {
     });
     
     if (!response.data || response.data.length === 0) {
-      throw new Error('No data returned from DexScreener');
+      return null;
     }
     
     return new TokenInfo(response.data);

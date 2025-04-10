@@ -51,5 +51,13 @@ export function processSwapData(webhookData) {
   processedData.timestamp = webhookData.timestamp;
   processedData.description = webhookData.description;
 
+  const requiredFields = ['account', 'token_in_address', 'token_in_amount', 'token_out_address', 'token_out_amount'];
+  const hasAllFields = requiredFields.every(field => processedData[field] !== undefined && processedData[field] !== null);
+
+  if (!hasAllFields) {
+    console.log('Incomplete swap data for transaction:', webhookData.signature);
+    return null;
+  }
+
   return processedData;
 }
